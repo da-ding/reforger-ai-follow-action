@@ -1,0 +1,21 @@
+GameProject {
+ ID "AI Follow Action"
+ GUID "59DAD00000000002"
+ TITLE "AI Follow Action"
+ Dependencies {
+  "58D0FB3206B6F859" 
+  "59DAD00000000000"
+ }
+ Configurations {
+  GameProjectConfig PC {
+  }
+  GameProjectConfig XBOX_ONE {
+  }
+  GameProjectConfig XBOX_SERIES {
+  }
+  GameProjectConfig PS4 {
+  }
+  GameProjectConfig HEADLESS {
+  }
+ }
+}
