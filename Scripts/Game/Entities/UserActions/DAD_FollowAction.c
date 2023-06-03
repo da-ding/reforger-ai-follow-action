@@ -3,7 +3,7 @@ class DAD_FollowAction : ScriptedUserAction {
 	// TODO: It might be bad keeping a waypoint around for every Character that is FollowAction'ed
 	SCR_EntityWaypoint m_FollowWaypoint = null;
 
-	const ResourceName m_WaypointType = "{A0509D3C4DD4475E}Prefabs/AI/Waypoints/AIWaypoint_Follow.et";
+	const ResourceName m_WaypointType = "{C37ABB3DCAE43B36}Prefabs/AI/Waypoints/AIWaypoint_FollowFast.et";
 
 	//------------------------------------------------------------------------------------------------
 	override void PerformAction(IEntity pOwnerEntity, IEntity pUserEntity)
@@ -101,11 +101,9 @@ class DAD_FollowAction : ScriptedUserAction {
 		}
 		else
 		{
-			auto prefab = wp.GetPrefabData();
-			isFollowing = prefab && prefab.GetPrefabName() == m_WaypointType;
+			EntityPrefabData prefab = wp.GetPrefabData();
+			isFollowing = prefab && prefab.GetPrefabName().Contains("Waypoint_Follow");
 		}
-
-		Print("Following is %1", isFollowing);
 
 		if (!ai) return false;
 		array<AIAgent> agents = new array<AIAgent>();
