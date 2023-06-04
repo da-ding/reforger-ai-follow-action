@@ -2,18 +2,19 @@ class DAD_FollowAction : ScriptedUserAction {
 
 	// TODO: It might be bad keeping a waypoint around for every Character that is FollowAction'ed
 	SCR_EntityWaypoint m_FollowWaypoint = null;
+	
+	bool m_fixedSpeedBug = false;
 
 	const ResourceName m_WaypointType = "{C37ABB3DCAE43B36}Prefabs/AI/Waypoints/AIWaypoint_FollowFast.et";
+
+	
+	IEntity m_User = null;
 
 	//------------------------------------------------------------------------------------------------
 	override void PerformAction(IEntity pOwnerEntity, IEntity pUserEntity)
 	{
 		RplComponent rplC = RplComponent.Cast(GetOwner().FindComponent(RplComponent));
 		if (!rplC.IsOwner()) return;
-
-		// TODO: We have to update all of the Group's children here with the isFollowing status, because GetActionNameScript
-		// only runs on the proxy/client/whatever
-		// Also, we probably want to do that automatically in the AIGroup whenever a Follow waypoint is set.
 
 		if (!m_FollowWaypoint)
 		{
@@ -24,24 +25,48 @@ class DAD_FollowAction : ScriptedUserAction {
 		AIControlComponent controlComp = AIControlComponent.Cast(pOwnerEntity.FindComponent(AIControlComponent));
 		AIGroup ai = controlComp.GetControlAIAgent().GetParentGroup();
 
-		if (CheckIsFollowing())
+		if (IsFollowing())
 		{
 			ai.RemoveWaypointAt(0);
+			m_User = null;
 		}
 		else
 		{
-			m_FollowWaypoint.SetEntity(pUserEntity);
-			//m_FollowWaypoint.SetPriority(true);
-
+			m_User = pUserEntity;
+			m_FollowWaypoint.SetEntity(m_User);
+			
 			ai.AddWaypointAt(m_FollowWaypoint, 0);
+			UpdateWaypointPos();
 		}
-		CheckIsFollowing();
+
+		AIWaypoint wp = ai.GetCurrentWaypoint();
+
+		bool isFollowing;
+		if (!wp)
+		{
+			isFollowing = false;
+		}
+		else
+		{
+			EntityPrefabData prefab = wp.GetPrefabData();
+			if (!prefab) Print("Could not get prefab!");
+			isFollowing = prefab && prefab.GetPrefabName().Contains("Waypoint_Follow");
+		}
+
+		array<AIAgent> agents = new array<AIAgent>();
+		ai.GetAgents(agents);
+		foreach (AIAgent agent : agents)
+		{
+			SCR_ChimeraCharacter char = SCR_ChimeraCharacter.Cast(agent.GetControlledEntity());
+			char.SetIsFollowing(isFollowing);
+
+		}
 	}
 
 	//------------------------------------------------------------------------------------------------
 	override bool GetActionNameScript(out string outName)
 	{
-		if (CheckIsFollowing())
+		if (IsFollowing())
 			outName = "Stop from Following";
 		else
 			outName = "Ask to Follow";
@@ -69,8 +94,9 @@ class DAD_FollowAction : ScriptedUserAction {
 
 	AIGroup GetAI()
 	{
+
 		AIControlComponent controlComp = AIControlComponent.Cast(GetOwner().FindComponent(AIControlComponent));
-		AIGroup ai = controlComp.GetControlAIAgent().GetParentGroup();
+		AIGroup ai = SCR_AIGroup.Cast(controlComp.GetControlAIAgent().GetParentGroup());
 
 		if (!ai)
 		{
@@ -81,39 +107,34 @@ class DAD_FollowAction : ScriptedUserAction {
 	}
 
 	//[RplRpc(RplChannel.Reliable, RplRcver.Server)]
-	bool CheckIsFollowing()
+	bool IsFollowing()
 	{
 		RplComponent rplC = RplComponent.Cast(GetOwner().FindComponent(RplComponent));
+		SCR_ChimeraCharacter owner = SCR_ChimeraCharacter.Cast(GetOwner());
+		return owner.GetIsFollowing();
+	}
+	
+	void UpdateWaypointPos() {
+		if (!m_User) return;
+		if (m_fixedSpeedBug) return;
+		
+		GetGame().GetCallqueue().CallLater(UpdateWaypointPos, 4 * 1000, false);
+		
+		vector newOrigin = m_User.GetOrigin();		
+		float distance = vector.Distance(GetOwner().GetOrigin(), newOrigin);
 
-		if (!rplC.IsOwner())
-		{
-			SCR_ChimeraCharacter owner = SCR_ChimeraCharacter.Cast(GetOwner());
-			return owner.GetIsFollowing();
-		}
-
+		if (distance < 5) return;
+		
 		AIGroup ai = GetAI();
-		AIWaypoint wp = ai.GetCurrentWaypoint();
 
-		bool isFollowing;
-		if (!wp)
-		{
-			isFollowing = false;
-		}
-		else
-		{
-			EntityPrefabData prefab = wp.GetPrefabData();
-			isFollowing = prefab && prefab.GetPrefabName().Contains("Waypoint_Follow");
-		}
+		AIWaypoint moveWaypoint = AIWaypoint.Cast(SpawnHelpers.SpawnEntity(
+				Resource.Load("{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et"),
+				newOrigin
+		));
 
-		if (!ai) return false;
-		array<AIAgent> agents = new array<AIAgent>();
-		ai.GetAgents(agents);
-		foreach (AIAgent agent : agents)
-		{
-			SCR_ChimeraCharacter char = SCR_ChimeraCharacter.Cast(agent.GetControlledEntity());
-			char.SetIsFollowing(isFollowing);
-		}
-		return isFollowing;
+		moveWaypoint.SetOrigin(newOrigin);
+		ai.AddWaypointAt(moveWaypoint, 0);
+		m_fixedSpeedBug = true;
 	}
 
 	/*
