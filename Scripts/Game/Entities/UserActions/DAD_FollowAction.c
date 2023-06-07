@@ -8,7 +8,7 @@ class DAD_FollowAction : ScriptedUserAction {
 	const ResourceName m_WaypointType = "{C37ABB3DCAE43B36}Prefabs/AI/Waypoints/AIWaypoint_FollowFast.et";
 
 	
-	IEntity m_User = null;
+	SCR_ChimeraCharacter m_User = null;
 
 	//------------------------------------------------------------------------------------------------
 	override void PerformAction(IEntity pOwnerEntity, IEntity pUserEntity)
@@ -32,7 +32,7 @@ class DAD_FollowAction : ScriptedUserAction {
 		}
 		else
 		{
-			m_User = pUserEntity;
+			m_User = SCR_ChimeraCharacter.Cast(pUserEntity);
 			m_FollowWaypoint.SetEntity(m_User);
 			
 			ai.AddWaypointAt(m_FollowWaypoint, 0);
@@ -53,7 +53,7 @@ class DAD_FollowAction : ScriptedUserAction {
 			isFollowing = prefab && prefab.GetPrefabName().Contains("Waypoint_Follow");
 		}
 
-		array<AIAgent> agents = new array<AIAgent>();
+		ref array<AIAgent> agents = {};
 		ai.GetAgents(agents);
 		foreach (AIAgent agent : agents)
 		{
@@ -116,25 +116,69 @@ class DAD_FollowAction : ScriptedUserAction {
 	
 	void UpdateWaypointPos() {
 		if (!m_User) return;
-		if (m_fixedSpeedBug) return;
-		
-		GetGame().GetCallqueue().CallLater(UpdateWaypointPos, 4 * 1000, false);
-		
-		vector newOrigin = m_User.GetOrigin();		
-		float distance = vector.Distance(GetOwner().GetOrigin(), newOrigin);
+		GetGame().GetCallqueue().CallLater(UpdateWaypointPos, 2 * 1000, false);
 
-		if (distance < 5) return;
-		
+		vector playerOrigin = m_User.GetOrigin();
 		AIGroup ai = GetAI();
 
+		ref array<AIAgent> agents = {};
+		ai.GetAgents(agents);
+		
+
+		if (m_User.IsInVehicle() && !ai.GetCurrentWaypoint().GetPrefabData().GetPrefabName().Contains("Waypoint_GetIn"))
+		{
+
+			foreach (AIAgent a: agents)
+			{
+				
+				ChimeraCharacter character = ChimeraCharacter.Cast(a.GetControlledEntity());
+				if (character && !character.IsInVehicle())
+				{
+					AIWaypoint getInWaypoint = AIWaypoint.Cast(SpawnHelpers.SpawnEntity(
+						Resource.Load("{0A2A37B4A56D74DF}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_GetInNearest.et"),
+						playerOrigin
+					));
+					AIWaypoint stayInCar = AIWaypoint.Cast(SpawnHelpers.SpawnEntity(
+						Resource.Load("{90E783A161383314}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_Wait.et"),
+						playerOrigin
+					));
+					ai.AddWaypointAt(stayInCar, 0);
+					ai.AddWaypointAt(getInWaypoint, 0);
+					break;
+				}
+			}
+		}
+		if (!m_User.IsInVehicle())
+		{
+			while (ai.GetCurrentWaypoint().GetPrefabData().GetPrefabName().Contains("Waypoint_GetIn"))
+			{
+				ai.RemoveWaypointAt(0);
+			}
+			
+			while (ai.GetCurrentWaypoint().GetPrefabData().GetPrefabName().Contains("Waypoint_Wait"))
+			{
+				ai.RemoveWaypointAt(0);
+			}
+		}
+
+		
+		if (m_fixedSpeedBug) return;
+
+		float distance = vector.Distance(GetOwner().GetOrigin(), playerOrigin);
+
+		if (distance < 5) return;
+
 		AIWaypoint moveWaypoint = AIWaypoint.Cast(SpawnHelpers.SpawnEntity(
-				Resource.Load("{750A8D1695BD6998}Prefabs/AI/Waypoints/AIWaypoint_Move.et"),
-				newOrigin
+				Resource.Load("{3C790BB71C5CD960}PrefabsEditable/Auto/AI/Waypoints/E_AIWaypoint_ForcedMove.et"),
+				playerOrigin
 		));
 
-		moveWaypoint.SetOrigin(newOrigin);
+		moveWaypoint.SetOrigin(playerOrigin);
 		ai.AddWaypointAt(moveWaypoint, 0);
 		m_fixedSpeedBug = true;
+
+		bool completeWaypoint = true;
+
 	}
 
 	/*
