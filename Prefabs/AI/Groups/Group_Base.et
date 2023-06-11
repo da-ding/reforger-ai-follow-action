@@ -1,0 +1,7 @@
+SCR_AIGroup {
+ ID "DAD0DAD000000001"
+ components {
+  DAD_FollowComponent "{5D94753B89D30E41}" {
+  }
+ }
+}
